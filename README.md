@@ -7,6 +7,12 @@ Test::SpyCalls - It's new $module
 
     use Test::SpyCalls;
 
+    my $spy = spy_calls('Foo::Bar', [ 'foo', 'bar' ]);
+
+    ...
+
+    my @array_of_args = $spy->args('Foo::Bar', 'foo');
+
 # DESCRIPTION
 
 Test::SpyCalls is ...

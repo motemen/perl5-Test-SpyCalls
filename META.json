@@ -58,5 +58,16 @@
       }
    },
    "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/motemen/perl5-Test-SpyCalls/issues"
+      },
+      "homepage" : "https://github.com/motemen/perl5-Test-SpyCalls",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/motemen/perl5-Test-SpyCalls.git",
+         "web" : "https://github.com/motemen/perl5-Test-SpyCalls"
+      }
+   },
    "version" : "0.01"
 }

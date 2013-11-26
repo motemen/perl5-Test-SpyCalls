@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/motemen/perl5-Test-SpyCalls.png?branch=master)](https://travis-ci.org/motemen/perl5-Test-SpyCalls)
 # NAME
 
 Test::SpyCalls - It's new $module

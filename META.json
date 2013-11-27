@@ -46,8 +46,6 @@
             "Carp" : "0",
             "Class::Monadic" : "0",
             "Exporter::Lite" : "0",
-            "Guard" : "0",
-            "Scalar::Util" : "0",
             "Sub::Install" : "0",
             "perl" : "5.008005"
          }

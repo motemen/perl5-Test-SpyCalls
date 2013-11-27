@@ -2,95 +2,130 @@ package Test::SpyCalls;
 use 5.008005;
 use strict;
 use warnings;
-use Sub::Install;
-use Guard;
-use Carp;
-use Scalar::Util qw(refaddr);
-use Class::Monadic;
 use Exporter::Lite;
+use Test::Mock::Guard;
+use Carp;
+use Sub::Install;
 
 our $VERSION = '0.01';
 
 our @EXPORT = qw(spy_calls);
 
-our $SPIED_CALLS = {};
+# spy_calls($pkg => \@methods, ...);
+sub spy_calls (@) {
+    return __PACKAGE__->new(@_);
+}
 
-sub _pkg ($) {
-    my ($target) = @_;
+sub new {
+    my $class = shift;
+    my $self  = bless {}, $class;
 
-    if (ref $target) {
-        my $meta = Class::Monadic->initialize($target);
-        return join '::', $meta->name, $meta->id;
-    } else {
-        return $target;
+    my @overrides;
+    while (my ($target, $methods) = splice @_, 0, 2) {
+        push @overrides, (
+            $target => +{
+                map +( $_ => $self->_mk_spied_sub($target, $_) ), @$methods
+            }
+        );
     }
+
+    $self->{guard} = Test::SpyCalls::MethodOverride->new(@overrides);
+    $self->{calls} = {};
+
+    return $self;
 }
 
 sub calls {
-    my ($self, $target, $method) = @_;
-    my $pkg = _pkg $target;
-    return @{ $SPIED_CALLS->{ "$pkg\::$method" } || [] };
+    my $self = shift;
+    if (@_ == 1) {
+        my ($method) = @_;
+        return @{ $self->{calls}->{$method} || [] };
+    } elsif (@_ >= 2) {
+        my ($target, $method) = @_;
+        return grep { $_->{target} eq $target } @{ $self->{calls}->{$method} || [] };
+    } else {
+        croak;
+    }
 }
 
 sub args {
-    my ($self, $target, $method) = @_;
-    return map { $_->{args} } $self->calls($target, $method);
+    my $self = shift;
+    return map { $_->{args} } $self->calls(@_);
 }
 
 sub callers {
-    my ($self, $target, $method) = @_;
-    return map { $_->{caller} } $self->calls($target, $method);
+    my $self = shift;
+    return map { $_->{caller} } $self->calls(@_);
 }
 
-# spy_calls($pkg, \@methods);
-sub spy_calls (@) {
-    my $spy = bless {};
+sub _mk_spied_sub (\&) {
+    my ($self, $target, $method) = @_;
 
-    while (my ($target, $methods) = splice @_, 0, 2) {
-        foreach my $method (@$methods) {
-            my $pkg = _pkg $target;
+    my $orig = $target->can($method);
+    croak "$target->$method is not a coderef" unless ref $orig eq 'CODE';
 
-            my $original = $target->can($method);
+    return sub {
+        push @{ $self->{calls}->{$method} }, +{
+            target => $target,
+            args   => [ @_ ],
+            caller => [ caller(1) ],
+        };
+        goto \&$orig;
+    };
+}
 
-            $spy->{original_codes}->{$pkg}->{$method} = $original;
+package
+    Test::SpyCalls::MethodOverride;
+use Sub::Install qw(reinstall_sub);
+use Class::Monadic qw(monadic);
 
-            Sub::Install::reinstall_sub {
-                code => _spied_sub($original, "$pkg\::$method"),
+sub _pkg_for ($) {
+    my ($target) = @_;
+    return ref $target ? do { monadic($target); ref $target } : $target;
+}
+
+sub new {
+    my ($class, @defs) = @_;
+
+    my @overrides;
+
+    while (my ($target, $methods) = splice @defs, 0, 2) {
+        my $pkg = _pkg_for $target;
+
+        foreach my $method (keys %$methods) {
+            my $code = $methods->{$method};
+
+            push @overrides, +{
+                original => $target->can($method),
+                target   => $target,
+                method   => $method,
+            };
+
+            reinstall_sub +{
+                code => $code,
                 into => $pkg,
                 as   => $method,
             };
         }
     }
 
-    my $original_codes = $spy->{original_codes};
-
-    $spy->{guard} = guard {
-        foreach my $pkg (keys %$original_codes) {
-            foreach my $method (keys %{ $original_codes->{$pkg} }) {
-                Sub::Install::reinstall_sub {
-                    code => $original_codes->{$pkg}->{$method},
-                    into => $pkg,
-                    as   => $method,
-                };
-            }
-        }
-    };
-
-    return $spy;
+    return bless +{ overrides => \@overrides }, $class;
 }
 
-sub _spied_sub (\&) {
-    my ($sub, $key) = @_;
+# TODO: check other overrides of same target
+sub DESTROY {
+    local $@;
 
-    croak "$sub is not a coderef" unless ref $sub eq 'CODE';
+    my $self = shift;
+    my @overrides = @{ $self->{overrides} };
 
-    return sub {
-        push @{ $SPIED_CALLS->{$key} }, {
-            args   => [ @_ ],
-            caller => [ caller(1) ],
+    foreach (@overrides) {
+        reinstall_sub +{
+            code => $_->{original},
+            into => _pkg_for($_->{target}),
+            as   => $_->{method},
         };
-        goto \&$sub;
-    };
+    }
 }
 
 1;

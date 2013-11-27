@@ -22,28 +22,29 @@ subtest 'spy on instance methods' => sub {
     my $foo1 = Foo->new(1);
     my $foo2 = Foo->new(2);
 
-    my $spy = spy_calls($foo1, [ 'x' ]);
+    my $spy1 = spy_calls($foo1, [ 'x' ]);
+    my $spy2 = spy_calls($foo2, [ 'x' ]);
 
-    is $foo1->x('a'), 'x: a';
-    is $foo2->x('b'), 'x: b';
+    is $foo1->x('a'),   'x: a';
+    is $foo2->x('b'),   'x: b';
+    is +Foo->foo(1, 2), 'foo: 1 2';
 
-    is_deeply [ $spy->args($foo1, 'x') ], [
+    is_deeply [ $spy1->args($foo1, 'x') ], [
         [ $foo1, 'a' ]
     ];
 
-    ok ! $spy->args($foo2, 'x');
-    ok ! $spy->args('Foo', 'x');
+    ok ! $spy1->args($foo2, 'x');
+    ok ! $spy1->args('Foo', 'x');
 
-    isnt $foo1->can('x'), Foo->can('x');
-    is   $foo2->can('x'), Foo->can('x');
-
-    undef $spy;
+    undef $spy1;
 
     is $foo1->x('a'), 'x: a';
     is $foo2->x('b'), 'x: b';
 
-    is $foo1->can('x'), Foo->can('x');
-    is $foo2->can('x'), Foo->can('x');
+    is_deeply [ $spy2->args($foo2, 'x') ], [
+        [ $foo2, 'b' ],
+        [ $foo2, 'b' ]
+    ];
 };
 
 done_testing;

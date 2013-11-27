@@ -1,10 +1,8 @@
 requires 'perl', '5.008001';
 
-requires 'Sub::Install';
-requires 'Guard';
 requires 'Carp';
-requires 'Scalar::Util';
 requires 'Exporter::Lite';
+requires 'Sub::Install';
 requires 'Class::Monadic';
 
 on 'test' => sub {

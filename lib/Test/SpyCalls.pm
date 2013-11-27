@@ -20,6 +20,8 @@ sub new {
 
     my @overrides;
     while (my ($target, $methods) = splice @_, 0, 2) {
+        $methods = [ $methods ] unless ref $methods eq 'ARRAY';
+
         push @overrides, (
             $target => +{
                 map +( $_ => $self->_mk_spied_sub($target, $_) ), @$methods
@@ -28,22 +30,26 @@ sub new {
     }
 
     $self->{guard} = Test::SpyCalls::MethodOverride->new(@overrides);
-    $self->{calls} = {};
+    $self->{calls} = [];
 
     return $self;
 }
 
 sub calls {
     my $self = shift;
+
+    my $pred;
     if (@_ == 1) {
         my ($method) = @_;
-        return @{ $self->{calls}->{$method} || [] };
+        $pred = sub { $_->{method} eq $method };
     } elsif (@_ >= 2) {
         my ($target, $method) = @_;
-        return grep { $_->{target} eq $target } @{ $self->{calls}->{$method} || [] };
-    } else {
-        croak;
+        $pred = sub { $_->{target} eq $target && $_->{method} eq $method };
     }
+
+    my @calls = @{ $self->{calls} };
+    return @calls unless $pred;
+    return grep &$pred, @calls;
 }
 
 sub args {
@@ -63,10 +69,11 @@ sub _mk_spied_sub (\&) {
     croak "$target->$method is not a coderef" unless ref $orig eq 'CODE';
 
     return sub {
-        push @{ $self->{calls}->{$method} }, +{
+        push @{ $self->{calls} }, +{
             target => $target,
+            method => $method,
             args   => [ @_ ],
-            caller => [ caller(1) ],
+            caller => [ caller(0) ],
         };
         goto \&$orig;
     };
@@ -74,8 +81,8 @@ sub _mk_spied_sub (\&) {
 
 package
     Test::SpyCalls::MethodOverride;
-use Sub::Install qw(reinstall_sub);
 use Class::Monadic qw(monadic);
+use Sub::Install qw(reinstall_sub);
 
 sub _pkg_for ($) {
     my ($target) = @_;

@@ -52,6 +52,7 @@
       },
       "test" : {
          "requires" : {
+            "Test::Deep" : "0",
             "Test::More" : "0.98"
          }
       }

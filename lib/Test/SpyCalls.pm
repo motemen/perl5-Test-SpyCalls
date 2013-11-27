@@ -3,9 +3,7 @@ use 5.008005;
 use strict;
 use warnings;
 use Exporter::Lite;
-use Test::Mock::Guard;
 use Carp;
-use Sub::Install;
 
 our $VERSION = '0.01';
 

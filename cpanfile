@@ -5,6 +5,7 @@ requires 'Guard';
 requires 'Carp';
 requires 'Scalar::Util';
 requires 'Exporter::Lite';
+requires 'Class::Monadic';
 
 on 'test' => sub {
     requires 'Test::More', '0.98';

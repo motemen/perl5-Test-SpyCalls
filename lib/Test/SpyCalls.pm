@@ -6,6 +6,7 @@ use Sub::Install;
 use Guard;
 use Carp;
 use Scalar::Util qw(refaddr);
+use Class::Monadic;
 use Exporter::Lite;
 
 our $VERSION = '0.01';
@@ -14,45 +15,60 @@ our @EXPORT = qw(spy_calls);
 
 our $SPIED_CALLS = {};
 
+sub _pkg ($) {
+    my ($target) = @_;
+
+    if (ref $target) {
+        my $meta = Class::Monadic->initialize($target);
+        return join '::', $meta->name, $meta->id;
+    } else {
+        return $target;
+    }
+}
+
 sub calls {
-    my ($self, $pkg, $method) = @_;
-    my $original = $self->{original_codes}->{$pkg}->{$method};
-    return @{ $SPIED_CALLS->{ refaddr $original } || [] };
+    my ($self, $target, $method) = @_;
+    my $pkg = _pkg $target;
+    return @{ $SPIED_CALLS->{ "$pkg\::$method" } || [] };
 }
 
 sub args {
-    my ($self, $pkg, $method) = @_;
-    return map { $_->{args} } $self->calls($pkg, $method);
+    my ($self, $target, $method) = @_;
+    return map { $_->{args} } $self->calls($target, $method);
 }
 
 sub callers {
-    my ($self, $pkg, $method) = @_;
-    return map { $_->{caller} } $self->calls($pkg, $method);
+    my ($self, $target, $method) = @_;
+    return map { $_->{caller} } $self->calls($target, $method);
 }
 
 # spy_calls($pkg, \@methods);
 sub spy_calls (@) {
     my $spy = bless {};
 
-    while (my ($pkg, $methods) = splice @_, 0, 2) {
+    while (my ($target, $methods) = splice @_, 0, 2) {
         foreach my $method (@$methods) {
-            my $original = $pkg->can($method);
+            my $pkg = _pkg $target;
+
+            my $original = $target->can($method);
 
             $spy->{original_codes}->{$pkg}->{$method} = $original;
 
             Sub::Install::reinstall_sub {
-                code => _spied_sub($original),
+                code => _spied_sub($original, "$pkg\::$method"),
                 into => $pkg,
                 as   => $method,
             };
         }
     }
 
+    my $original_codes = $spy->{original_codes};
+
     $spy->{guard} = guard {
-        foreach my $pkg (keys %{ $spy->{original_codes} }) {
-            foreach my $method (keys %{ $spy->{original_codes}->{$pkg} }) {
+        foreach my $pkg (keys %$original_codes) {
+            foreach my $method (keys %{ $original_codes->{$pkg} }) {
                 Sub::Install::reinstall_sub {
-                    code =>  $spy->{original_codes}->{$pkg}->{$method},
+                    code => $original_codes->{$pkg}->{$method},
                     into => $pkg,
                     as   => $method,
                 };
@@ -64,12 +80,12 @@ sub spy_calls (@) {
 }
 
 sub _spied_sub (\&) {
-    my $sub = shift;
+    my ($sub, $key) = @_;
 
     croak "$sub is not a coderef" unless ref $sub eq 'CODE';
 
     return sub {
-        push @{ $SPIED_CALLS->{ refaddr $sub } }, {
+        push @{ $SPIED_CALLS->{$key} }, {
             args   => [ @_ ],
             caller => [ caller(1) ],
         };

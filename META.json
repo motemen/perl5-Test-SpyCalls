@@ -1,5 +1,5 @@
 {
-   "abstract" : "It's new $module",
+   "abstract" : "Spies class/instance method calls",
    "author" : [
       "motemen <motemen@gmail.com>"
    ],
